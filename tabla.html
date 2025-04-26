@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bitacora de Actividades</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    body {
+      background-color: #66cc66;
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    table {
+      width: 100%;
+      background: #fff;
+      border-collapse: collapse;
+      margin: 0 auto;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 0.5rem;
+      vertical-align: top;
+    }
+
+    th {
+      background-color: #4CAF50;
+      color: white;
+    }
+
+    textarea, input {
+      width: 100%;
+      border: none;
+      padding: 4px;
+      font-size: 0.9rem;
+    }
+
+    .img-drop {
+      min-height: 100px;
+      border: 1px dashed #aaa;
+      padding: 5px;
+      text-align: center;
+      position: relative;
+    }
+
+    .img-drop img {
+      max-width: 100%;
+      max-height: 200px;
+      margin-top: 5px;
+    }
+
+    .img-drop input[type="file"] {
+      position: absolute;
+      bottom: 5px;
+      left: 5px;
+      opacity: 0.7;
+    }
+
+    button {
+      margin: 1rem 0.5rem;
+      background: #8000ff;
+      color: #fff;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+
+    #reporte-container {
+      max-width: 1200px;
+      margin: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Bitacora de Actividades</h1>
+  <div id="reporte-container">
+    <table id="tabla-reporte">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Sucursal</th>
+          <th>Fecha</th>
+          <th>Hora</th>
+          <th>Descripción / Imagen</th>
+          <th>Seguimiento</th>
+          <th>Monitorista</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-body"></tbody>
+    </table>
+
+    <button onclick="agregarFila()">Agregar fila</button>
+    <button onclick="borrarUltimaFila()">Borrar fila</button>
+    <button onclick="generarPDF()">Generar PDF</button>
+  </div>
+
+  <script>
+    // Restaurar datos del localStorage
+    window.onload = () => {
+      const guardado = localStorage.getItem("reporteTurno");
+      if (guardado) {
+        document.getElementById("tabla-body").innerHTML = guardado;
+      } else {
+        agregarFila(); // agregar una fila por defecto
+      }
+    };
+
+    // Guardar automáticamente en localStorage al cambiar algo
+    document.addEventListener("input", () => {
+      localStorage.setItem("reporteTurno", document.getElementById("tabla-body").innerHTML);
+    });
+
+    function agregarFila() {
+      const tbody = document.getElementById('tabla-body');
+      const rowCount = tbody.rows.length + 1;
+      const row = tbody.insertRow();
+      row.innerHTML = `
+        <td>${rowCount}</td>
+        <td><input type="text" name="sucursal"></td>
+        <td><input type="date" name="fecha"></td>
+        <td><input type="time" name="hora"></td>
+        <td class="img-drop" contenteditable="true">
+          DESCRIPCIÓN
+          <input type="file" accept="image/*" onchange="subirImagen(event, this)">
+        </td>
+        <td><textarea name="seguimiento"></textarea></td>
+        <td><input type="text" name="monitorista"></td>
+      `;
+      guardarEnLocalStorage();
+    }
+
+    function borrarUltimaFila() {
+      const tbody = document.getElementById('tabla-body');
+      if (tbody.rows.length > 0) {
+        tbody.deleteRow(-1);
+        guardarEnLocalStorage();
+      }
+    }
+
+    function subirImagen(event, input) {
+      const file = event.target.files[0];
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const container = input.closest(".img-drop");
+        container.innerHTML = `<img src="${e.target.result}" /><input type="file" accept="image/*" onchange="subirImagen(event, this)">`;
+        guardarEnLocalStorage();
+      };
+      if (file) reader.readAsDataURL(file);
+    }
+
+    // Pegar imágenes desde portapapeles
+    document.addEventListener("paste", (e) => {
+      const active = document.activeElement;
+      if (active.classList.contains("img-drop")) {
+        const items = e.clipboardData.items;
+        for (let item of items) {
+          if (item.type.indexOf("image") !== -1) {
+            const file = item.getAsFile();
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              active.innerHTML = `<img src="${event.target.result}" /><input type="file" accept="image/*" onchange="subirImagen(event, this)">`;
+              guardarEnLocalStorage();
+            };
+            reader.readAsDataURL(file);
+          }
+        }
+      }
+    });
+
+    function generarPDF() {
+      const botones = document.querySelectorAll('button');
+      botones.forEach(boton => boton.style.display = 'none');
+
+      const opt = {
+        margin: [0.2, 0.2, 0.2, 0.2],
+        filename: 'reporte-turno.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true
+        },
+        jsPDF: {
+          unit: 'in',
+          format: 'letter',
+          orientation: 'portrait'
+        }
+      };
+
+      const element = document.getElementById("reporte-container");
+      html2pdf().set(opt).from(element).save().then(() => {
+        botones.forEach(boton => boton.style.display = 'inline-block');
+      });
+    }
+
+    function guardarEnLocalStorage() {
+      localStorage.setItem("reporteTurno", document.getElementById("tabla-body").innerHTML);
+    }
+  </script>
+
+</body>
+</html>
